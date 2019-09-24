@@ -3,6 +3,8 @@ title: "LAGOS Spatial Analysis"
 author: "Matthew Ross"
 date: "9/11/2019"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -13,6 +15,8 @@ library(sf) #Spatial package that can read and create shapefiles
 library(mapview) #Interactive maps
 library(LAGOSNE) #Lots and lots of clean lake data
 library(USAboundaries) #USA states and counties
+library(ggplot2)
+library(ggthemes)
 ```
 
 
@@ -25,13 +29,15 @@ library(USAboundaries) #USA states and counties
 ### First download and then specifically grab the locus (or site lat longs)
 ```{r data-read}
 #Lagos download script
-lagosne_get(version='1.087.1',dest_folder = LAGOSNE:::lagos_path())
+#lagosne_get(version='1.087.1',dest_folder = LAGOSNE:::lagos_path())
 
 #Load in lagos
-lagos <- lagosne_load()
+lagos <- lagosne_load('1.087.1')
 
 #Grab the lake centroid info
 lake_centers <- lagos$locus
+
+load('lake_centers.Rdata')
 ```
 
 
@@ -91,14 +97,34 @@ minnesota_lakes %>%
 
 ```{r }
 #Your code here
+
+#load all states
+states <- us_states()
+
+#filter out just Iowa and Illinois
+I_states <- states %>%
+  filter(name %in% c('Illinois','Iowa')) %>%
+  st_transform(2163)
+
+#Show interactive map
+mapview(I_states)
+
 ```
 
 
 
 ## 2) Subset LAGOS data to these sites, how many sites are in Illinois and Iowa
-combined? How does this compare to Minnesota?
+##combined? How does this compare to Minnesota?
 
 ```{r}
+#Subset lakes in Iowa and Illinois
+I_lakes <- spatial_lakes[I_states,]
+
+summarise(I_lakes, n())
+summarise(minnesota_lakes, n())
+
+#There are 16,466 in Illinois and Iowa combined. In comparison, there are 29,038
+#lakes in Minnesota alone.
 
 ```
 
@@ -109,6 +135,54 @@ combined? How does this compare to Minnesota?
 y axis (check out geom_histogram)
 
 ```{r}
+#Another way of doing this... 
+#subset iowa and minnesota
+iowa_minnesota <- states %>%
+  filter(name %in% c('Iowa', 'Minnesota')) %>%
+  st_transform(2163)
+
+#subset just names, need to filter out NAs which are lakes in other states
+iowa_minnesota_lakes <- spatial_lakes %>%
+  st_join(., iowa_minnesota) %>%
+  filter(!is.na(name))
+
+#look at the data, names should be iowa and minnesota
+table(iowa_minnesota_lakes$name)
+
+#plot histograms of the two states
+ggplot(iowa_minnesota_lakes, aes(lake_area_ha)) +
+  geom_histogram(binwidth = 0.1, color = 'black', fill = 'gray85') + 
+  scale_x_log10() + 
+  xlab('Lake Size (ha)') + 
+  ylab('Count')+
+  theme_few()+
+  facet_wrap(~name, dir = 'v', scales = 'free_y')
+
+# #Subset just Iowa (without Illinois)
+# Iowa <- states %>%
+#   filter(name == 'Iowa') %>%
+#   st_transform(2163) 
+# 
+# #Subset lakes that are just in Iowa
+# Iowa_lakes <- spatial_lakes[Iowa,] %>%
+#   mutate(state = 'Iowa')
+# 
+# #Add state name to Minnesota_lakes
+# minnesota_lakes <-spatial_lakes[minnesota,] %>%
+#   mutate(state = 'Minnesota')
+# 
+# #rbind the two datasets together
+# MinIowa_lakes <- rbind(Iowa_lakes, minnesota_lakes)
+# 
+# #Create histograms comparing lake size for Minnesota and Iowa
+# ggplot(data = MinIowa_lakes, aes(lake_area_ha)) + 
+#   geom_histogram(binwidth = 0.1, color = 'black', fill = 'gray85')+ 
+#   xlab('Lake Size (ha)') + 
+#   ylab('Count')+
+#   scale_x_log10()+
+#   theme_few()+
+#   facet_wrap(~state, dir = 'v')
+
 
 
 ```
@@ -118,6 +192,12 @@ y axis (check out geom_histogram)
 by lake area in hectares
 
 ```{r}
+#Making a map of all Illinois and Iowa lakes colored by area
+#slicing out the first 1000 lakes to make code run faster
+I_lakes %>%
+  slice(1:1000) %>%
+  arrange(lake_area_ha) %>%
+  mapview(.,zcol = 'lake_area_ha')
 
 ```
 
